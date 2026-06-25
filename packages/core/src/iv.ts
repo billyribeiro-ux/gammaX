@@ -120,12 +120,17 @@ export function ivVelocity(series: readonly IvSample[], window: number): IvVeloc
 	const last = win[win.length - 1];
 	const prev = win[win.length - 2];
 	if (!last || !prev) return { zScore: null, rocPctPerMin: null };
+	// ROC is instantaneous — well-defined from the last two observations.
+	const dtMin = (last.ts - prev.ts) / 60_000;
+	const rocPctPerMin =
+		dtMin > 0 && prev.v !== 0 ? (((last.v - prev.v) / prev.v) * 100) / dtMin : null;
+	// The rolling z-score is only meaningful once the window is actually full; a
+	// "window-sample z-score" computed over a handful of warm-up points mislabels
+	// the statistic and can manufacture spurious explosion/implosion signals.
+	if (win.length < window) return { zScore: null, rocPctPerMin };
 	const mean = win.reduce((a, b) => a + b.v, 0) / win.length;
 	const variance = win.reduce((a, b) => a + (b.v - mean) ** 2, 0) / win.length;
 	const std = Math.sqrt(variance);
 	const zScore = std > 0 ? (last.v - mean) / std : 0;
-	const dtMin = (last.ts - prev.ts) / 60_000;
-	const rocPctPerMin =
-		dtMin > 0 && prev.v !== 0 ? (((last.v - prev.v) / prev.v) * 100) / dtMin : null;
 	return { zScore, rocPctPerMin };
 }

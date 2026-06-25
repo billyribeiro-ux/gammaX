@@ -7,6 +7,10 @@ export const EngineConfig = z.object({
 	recomputeMs: z.number().int().positive().default(1500),
 	underlyings: z.array(UnderlyingSymbol).default(['SPX', 'SPY']),
 	gradeHorizons: z.array(z.number().int().positive()).default([15, 30, 60]),
+	// Max age of the realized spot relative to a signal's horizon before grading is
+	// abandoned as inconclusive. Guards against grading across a live data gap where
+	// the nearest recorded spot is far older than the horizon. Default 5 min.
+	graderMaxStalenessMs: z.number().int().positive().default(300_000),
 	rthOpen: z.string().default('09:30'),
 	rthClose: z.string().default('16:00'),
 	// When false, session/late-session gates are disabled (CI / off-hours demo).
@@ -38,6 +42,9 @@ export function loadEngineConfig(env: NodeJS.ProcessEnv = process.env): EngineCo
 		recomputeMs: env.ENGINE_RECOMPUTE_MS ? Number(env.ENGINE_RECOMPUTE_MS) : undefined,
 		underlyings: csv(env.ENGINE_UNDERLYINGS),
 		gradeHorizons: csvNums(env.ENGINE_GRADE_HORIZONS),
+		graderMaxStalenessMs: env.ENGINE_GRADE_MAX_STALENESS_MS
+			? Number(env.ENGINE_GRADE_MAX_STALENESS_MS)
+			: undefined,
 		rthOpen: env.ENGINE_RTH_OPEN,
 		rthClose: env.ENGINE_RTH_CLOSE,
 		sessionAware: env.ENGINE_SESSION_AWARE ? env.ENGINE_SESSION_AWARE !== 'false' : undefined,

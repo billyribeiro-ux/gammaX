@@ -69,8 +69,15 @@ export class ReplayFeed implements MarketFeed {
 			});
 			all.push(...rows);
 		}
-		// Strict point-in-time ordering — never emit out of capture order.
-		return all.sort((a, b) => a.captureTs - b.captureTs);
+		// Strict point-in-time ordering — never emit out of capture order. Ties
+		// (same-ms captures across symbols) break deterministically by symbol then
+		// source, so a recording always replays in exactly the same order.
+		return all.sort(
+			(a, b) =>
+				a.captureTs - b.captureTs ||
+				a.underlying.symbol.localeCompare(b.underlying.symbol) ||
+				a.source.localeCompare(b.source)
+		);
 	}
 
 	async start(): Promise<void> {

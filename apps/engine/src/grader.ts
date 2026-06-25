@@ -16,7 +16,10 @@ export class Grader {
 	constructor(
 		private readonly recorder: Recorder,
 		private readonly sink: SignalSink,
-		private readonly horizons: number[]
+		private readonly horizons: number[],
+		// Realized spots older than this relative to the horizon are treated as a
+		// data gap → graded inconclusive rather than against a stale price.
+		private readonly maxStalenessMs = 300_000
 	) {}
 
 	track(signal: Signal): void {
@@ -36,14 +39,43 @@ export class Grader {
 		const graded: SignalOutcome[] = [];
 		for (const p of due) {
 			const ref = await this.recorder.getSpotAtOrBefore(p.signal.underlying, p.signal.ts);
-			const realized = await this.recorder.getSpotAtOrBefore(p.signal.underlying, p.dueTs);
-			const outcome = gradeOutcome(p.signal, p.horizonMins, p.dueTs, ref, realized);
+			const sample = await this.recorder.getSpotSampleAtOrBefore(p.signal.underlying, p.dueTs);
+			const gapMs = sample == null ? Infinity : p.dueTs - sample.ts;
+			const outcome =
+				gapMs > this.maxStalenessMs
+					? staleOutcome(p.signal, p.horizonMins, p.dueTs, ref, sample?.spot ?? null, gapMs)
+					: gradeOutcome(p.signal, p.horizonMins, p.dueTs, ref, sample?.spot ?? null);
 			await this.recorder.writeOutcome(outcome);
 			this.sink.publishOutcome(outcome);
 			graded.push(outcome);
 		}
 		return graded;
 	}
+}
+
+// No recorded spot close enough to the horizon (live data gap). Grading against a
+// stale price would manufacture spurious confirmations/rejections, so abstain.
+function staleOutcome(
+	signal: Signal,
+	horizonMins: number,
+	gradedAt: number,
+	ref: number | null,
+	realized: number | null,
+	gapMs: number
+): SignalOutcome {
+	const gap = Number.isFinite(gapMs) ? `${Math.round(gapMs / 1000)}s` : 'no data';
+	return {
+		signalId: signal.id,
+		gradedAt,
+		horizonMins,
+		result: 'inconclusive',
+		detail: {
+			note: `data gap: nearest spot ${gap} before horizon`,
+			referenceSpot: ref ?? undefined,
+			realizedSpot: realized ?? undefined,
+			priceMovePct: 0
+		}
+	};
 }
 
 function gradeOutcome(

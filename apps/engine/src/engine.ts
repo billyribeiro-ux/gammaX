@@ -59,6 +59,10 @@ export class Engine {
 	private readonly prevSurfaces = new Map<string, GammaSurface>();
 	private activeKeys = new Set<string>();
 	private timer: ReturnType<typeof setInterval> | null = null;
+	// In-flight chain writes. The grader reads realized spot from the recorder, so
+	// these must be durable before grader.tick() runs — otherwise an async backend
+	// (Postgres) could be graded against a spot that hasn't landed yet.
+	private readonly pendingChainWrites = new Set<Promise<void>>();
 
 	constructor(deps: EngineDeps) {
 		this.config = deps.config;
@@ -93,7 +97,9 @@ export class Engine {
 
 	private onChain(snap: ChainSnapshot): void {
 		this.latest.set(snap.underlying.symbol, snap);
-		void this.recorder.writeChain(snap).catch((e) => logError('writeChain', e));
+		const write = this.recorder.writeChain(snap).catch((e) => logError('writeChain', e));
+		this.pendingChainWrites.add(write);
+		void write.finally(() => this.pendingChainWrites.delete(write));
 	}
 
 	private riskParams(u: UnderlyingSymbol): RiskParams {
@@ -221,6 +227,11 @@ export class Engine {
 		}
 		this.activeKeys = currentKeys;
 
+		// Barrier: flush outstanding chain writes so the grader's point-in-time
+		// reads (getSpot*AtOrBefore) see every snapshot up to `ts` before grading.
+		if (this.pendingChainWrites.size > 0) {
+			await Promise.allSettled([...this.pendingChainWrites]);
+		}
 		await this.grader.tick(ts);
 	}
 

@@ -91,14 +91,21 @@ export class SqliteRecorder implements Recorder {
 	}
 
 	async getSpotAtOrBefore(underlying: UnderlyingSymbol, ts: number): Promise<number | null> {
+		return (await this.getSpotSampleAtOrBefore(underlying, ts))?.spot ?? null;
+	}
+
+	async getSpotSampleAtOrBefore(
+		underlying: UnderlyingSymbol,
+		ts: number
+	): Promise<{ ts: number; spot: number } | null> {
 		const row = this.db
-			.select({ spot: chainSnapshots.spot })
+			.select({ ts: chainSnapshots.captureTs, spot: chainSnapshots.spot })
 			.from(chainSnapshots)
 			.where(and(eq(chainSnapshots.underlying, underlying), lte(chainSnapshots.captureTs, ts)))
 			.orderBy(desc(chainSnapshots.captureTs))
 			.limit(1)
 			.all()[0];
-		return row?.spot ?? null;
+		return row && row.spot != null ? { ts: row.ts, spot: row.spot } : null;
 	}
 
 	async getSurfaces(query: SurfaceQuery = {}): Promise<GammaSurface[]> {

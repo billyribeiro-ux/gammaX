@@ -12,7 +12,7 @@ async function main(): Promise<void> {
 	const config = loadEngineConfig();
 	const recorder = await createRecorder(process.env);
 	const sink = new EngineWsServer(config.wsPort, config.underlyings, SCOPES);
-	const grader = new Grader(recorder, sink, config.gradeHorizons);
+	const grader = new Grader(recorder, sink, config.gradeHorizons, config.graderMaxStalenessMs);
 	const feed = createFeed(config, recorder);
 	const engine = new Engine({ config, feed, recorder, sink, grader });
 	await engine.start();

@@ -23,6 +23,10 @@ export function applyStreamQuotes(snapshot: ChainSnapshot, quotes: StreamQuoteMa
 		const ask = num(fields, L1_OPTION_FIELDS.ask) ?? q.ask;
 		const last = num(fields, L1_OPTION_FIELDS.last) ?? q.last;
 		const mid = bid > 0 && ask > 0 ? (bid + ask) / 2 : q.mid;
+		// Only mark changed when a value actually moved — a streamed message with
+		// incomplete fields (all falling back to the REST values) must not spawn a
+		// new snapshot and trigger downstream recompute/persist for nothing.
+		if (bid === q.bid && ask === q.ask && last === q.last && mid === q.mid) return q;
 		changed = true;
 		return { ...q, bid, ask, mid, last };
 	});
