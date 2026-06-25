@@ -60,8 +60,9 @@ Run `pnpm check` (typecheck + lint + svelte-check + prettier + tests) — all gr
 
 ## Environment note
 
-Deploy target is Node 24 LTS (`.nvmrc`); the toolchain also runs on Node 22.12
-and newer. Node 24 does NOT ship Temporal — use `temporal-polyfill` for tz/DST.
+Node 24 LTS required (`.nvmrc` = 24.18.0; `engines.node >= 24.17.0`,
+`engine-strict`). Node 24 does NOT ship Temporal — use `temporal-polyfill` for
+tz/DST.
 
 ## pnpm only
 

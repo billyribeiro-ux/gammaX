@@ -46,7 +46,7 @@ reads) — a Rust port stays viable.
 
 ## Quickstart
 
-Requires **Node ≥ 22.12** (deploy target Node 24 LTS) and **pnpm**.
+Requires **Node 24 LTS** (`.nvmrc` pins 24.18.0; `engines.node >= 24.17.0`) and **pnpm**.
 
 ```sh
 pnpm install
