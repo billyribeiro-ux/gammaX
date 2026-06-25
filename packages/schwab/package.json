@@ -10,11 +10,13 @@
 	"types": "./src/index.ts",
 	"scripts": {
 		"typecheck": "tsc --noEmit",
-		"test": "vitest run --passWithNoTests"
+		"test": "vitest run --passWithNoTests",
+		"smoke": "tsx src/smoke.ts"
 	},
 	"dependencies": {
 		"@gammax/contracts": "workspace:*",
-		"ws": "catalog:"
+		"ws": "catalog:",
+		"zod": "catalog:"
 	},
 	"devDependencies": {
 		"@types/node": "catalog:",
