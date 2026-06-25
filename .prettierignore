@@ -1,0 +1,15 @@
+# dependencies / lockfiles
+**/node_modules/
+pnpm-lock.yaml
+
+# build output
+**/dist/
+**/build/
+**/.svelte-kit/
+**/coverage/
+apps/web/static/
+
+# data / local db
+data/
+*.sqlite
+*.sqlite3

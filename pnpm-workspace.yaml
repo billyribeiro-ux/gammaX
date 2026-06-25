@@ -1,0 +1,24 @@
+packages:
+  - 'packages/*'
+  - 'apps/*'
+
+# pnpm 10 blocks dependency build scripts by default; approve the ones we need.
+onlyBuiltDependencies:
+  - better-sqlite3
+  - esbuild
+
+# Single source of truth for shared dependency versions (referenced as `catalog:`).
+catalog:
+  typescript: 6.0.3
+  vitest: 4.1.9
+  zod: 4.4.3
+  ws: 8.21.0
+  '@types/ws': 8.18.1
+  '@types/node': ^22
+  drizzle-orm: 0.45.2
+  drizzle-kit: 0.31.10
+  postgres: 3.4.9
+  better-sqlite3: 12.11.1
+  '@types/better-sqlite3': ^7.6.13
+  temporal-polyfill: 1.0.1
+  tsx: ^4.20.6

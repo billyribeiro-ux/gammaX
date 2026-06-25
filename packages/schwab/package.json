@@ -1,0 +1,26 @@
+{
+	"name": "@gammax/schwab",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./package.json": "./package.json"
+	},
+	"types": "./src/index.ts",
+	"scripts": {
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run --passWithNoTests"
+	},
+	"dependencies": {
+		"@gammax/contracts": "workspace:*",
+		"ws": "catalog:"
+	},
+	"devDependencies": {
+		"@types/node": "catalog:",
+		"@types/ws": "catalog:",
+		"tsx": "catalog:",
+		"typescript": "catalog:",
+		"vitest": "catalog:"
+	}
+}

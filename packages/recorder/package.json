@@ -1,0 +1,31 @@
+{
+	"name": "@gammax/recorder",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./package.json": "./package.json"
+	},
+	"types": "./src/index.ts",
+	"scripts": {
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run --passWithNoTests",
+		"db:generate": "drizzle-kit generate",
+		"db:migrate": "tsx src/migrate.ts"
+	},
+	"dependencies": {
+		"@gammax/contracts": "workspace:*",
+		"better-sqlite3": "catalog:",
+		"drizzle-orm": "catalog:",
+		"postgres": "catalog:"
+	},
+	"devDependencies": {
+		"@types/better-sqlite3": "catalog:",
+		"@types/node": "catalog:",
+		"drizzle-kit": "catalog:",
+		"tsx": "catalog:",
+		"typescript": "catalog:",
+		"vitest": "catalog:"
+	}
+}

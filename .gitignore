@@ -1,0 +1,41 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# secrets — NEVER commit these
+.env
+.env.*
+!.env.example
+*.token.json
+.schwab-tokens.json
+secrets/
+
+# build output
+dist/
+build/
+.svelte-kit/
+.vite/
+*.tsbuildinfo
+
+# test / coverage
+coverage/
+.vitest/
+test-results/
+playwright-report/
+playwright/.cache/
+
+# local databases (SQLite profile)
+*.sqlite
+*.sqlite3
+*.db
+data/
+
+# logs
+*.log
+logs/
+
+# editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
