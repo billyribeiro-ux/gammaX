@@ -97,21 +97,26 @@
 		justify-content: space-between;
 		gap: 14px;
 		flex-wrap: wrap;
+		padding-block: 4px 12px;
+		border-block-end: 1px solid var(--border);
 
 		& h1 {
-			font-size: 18px;
+			font-size: 22px;
+			font-weight: 700;
+			letter-spacing: -0.02em;
 			display: flex;
 			align-items: baseline;
-			gap: 10px;
+			gap: 12px;
 		}
 		& h1 span:first-of-type {
 			color: var(--accent);
+			text-shadow: 0 0 18px color-mix(in oklch, var(--accent), transparent 40%);
 		}
 		& .sub {
 			font-size: 12px;
 			font-weight: 400;
 			color: var(--ink-faint);
-			letter-spacing: 0;
+			letter-spacing: 0.02em;
 		}
 	}
 	.grid {

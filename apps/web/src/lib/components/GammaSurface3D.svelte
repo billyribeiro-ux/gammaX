@@ -26,9 +26,10 @@
 		<p class="fallback">3D surface unavailable (WebGL not supported)</p>
 	{/if}
 	<div class="legend mono">
-		<span><i class="call"></i> +γ</span>
-		<span><i class="put"></i> −γ</span>
-		<span class="dim">bright row = 0DTE</span>
+		<span class="lbl">−γ</span>
+		<span class="bar"></span>
+		<span class="lbl">+γ</span>
+		<span class="dim">depth = DTE (near → far)</span>
 	</div>
 </div>
 
@@ -47,28 +48,27 @@
 	}
 	.legend {
 		position: absolute;
-		inset-block-end: 8px;
-		inset-inline-start: 10px;
+		inset-block-end: 10px;
+		inset-inline-start: 12px;
 		display: flex;
-		gap: 12px;
+		align-items: center;
+		gap: 8px;
 		font-size: 10px;
 		color: var(--ink-dim);
 
-		& i {
-			display: inline-block;
-			inline-size: 9px;
-			block-size: 9px;
-			border-radius: 2px;
-			vertical-align: middle;
+		& .bar {
+			inline-size: 88px;
+			block-size: 7px;
+			border-radius: 999px;
+			/* matches the surface ramp: −γ red → neutral dark → +γ green */
+			background: linear-gradient(90deg, #ff2d55, #7a1622, #0e1318, #0d3a24, #1fe07e);
 		}
-		& .call {
-			background: var(--call);
-		}
-		& .put {
-			background: var(--put);
+		& .lbl {
+			font-weight: 600;
 		}
 		& .dim {
 			color: var(--ink-faint);
+			margin-inline-start: 6px;
 		}
 	}
 </style>

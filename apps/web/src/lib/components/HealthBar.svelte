@@ -41,8 +41,9 @@
 		font-size: 11px;
 		padding: 8px 14px;
 		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		background: var(--bg-panel);
+		border-radius: 999px;
+		background: linear-gradient(180deg, var(--panel-1), var(--panel-0));
+		box-shadow: var(--shadow);
 	}
 	.dot {
 		inline-size: 8px;

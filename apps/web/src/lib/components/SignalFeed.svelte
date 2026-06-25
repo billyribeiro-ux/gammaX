@@ -41,7 +41,7 @@
 	{#each signals as s (s.id)}
 		{@const Icon = ICONS[s.kind]}
 		{@const outcome = outcomes[s.id]}
-		<article class="card">
+		<article class="card {s.kind}">
 			<span class="icon {s.kind}"><Icon size={16} weight="bold" /></span>
 			<div class="body">
 				<div class="top">
@@ -74,10 +74,34 @@
 	.card {
 		display: flex;
 		gap: 10px;
-		padding: 8px 10px;
+		padding: 9px 11px;
 		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		background: var(--bg-elev);
+		border-inline-start: 3px solid var(--accent);
+		border-radius: 10px;
+		background: linear-gradient(180deg, oklch(0.25 0.016 262 / 0.85), oklch(0.21 0.015 262 / 0.85));
+		transition:
+			transform 0.12s ease,
+			border-color 0.12s ease;
+	}
+	.card:hover {
+		transform: translateX(2px);
+		border-inline-start-color: var(--accent);
+	}
+	.card.iv_explosion {
+		border-inline-start-color: var(--warn);
+	}
+	.card.iv_implosion {
+		border-inline-start-color: var(--accent);
+	}
+	.card.wall_test,
+	.card.pop {
+		border-inline-start-color: var(--put);
+	}
+	.card.pin {
+		border-inline-start-color: var(--call);
+	}
+	.card.gamma_regime_flip {
+		border-inline-start-color: var(--flip);
 	}
 	.icon {
 		display: grid;
@@ -85,7 +109,7 @@
 		inline-size: 28px;
 		block-size: 28px;
 		border-radius: 8px;
-		color: var(--bg);
+		color: var(--bg-0);
 		background: var(--accent);
 		flex-shrink: 0;
 	}
