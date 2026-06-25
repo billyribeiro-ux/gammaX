@@ -3,6 +3,7 @@ import {
 	type ExpiryScope,
 	type FeedStatus,
 	type GammaSurface,
+	type GammaSurfaceGrid,
 	type IvState,
 	type Signal,
 	type SignalOutcome,
@@ -16,6 +17,7 @@ export class EngineStore {
 	connected = $state(false);
 	status = $state<FeedStatus | null>(null);
 	surfaces = $state<Record<string, GammaSurface>>({});
+	grids = $state<Record<string, GammaSurfaceGrid>>({});
 	ivStates = $state<Record<string, IvState>>({});
 	signals = $state<Signal[]>([]);
 	outcomes = $state<Record<string, SignalOutcome>>({});
@@ -32,6 +34,10 @@ export class EngineStore {
 
 	surface(scope: SurfaceScope, expiry: ExpiryScope): GammaSurface | undefined {
 		return this.surfaces[`${scope}:${expiry}`];
+	}
+
+	grid(scope: SurfaceScope): GammaSurfaceGrid | undefined {
+		return this.grids[scope];
 	}
 
 	iv(underlying: UnderlyingSymbol): IvState | undefined {
@@ -89,6 +95,9 @@ export class EngineStore {
 				break;
 			case 'surface':
 				this.surfaces[`${msg.surface.scope}:${msg.surface.expiryScope}`] = msg.surface;
+				break;
+			case 'grid':
+				this.grids[msg.grid.scope] = msg.grid;
 				break;
 			case 'iv':
 				this.ivStates[msg.iv.underlying] = msg.iv;

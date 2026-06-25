@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { EpochMillis, FeedSource, type UnderlyingSymbol } from './primitives';
 import type { ChainSnapshot, TradePrint } from './quotes';
-import type { GammaSurface } from './surface';
+import type { GammaSurface, GammaSurfaceGrid } from './surface';
 import type { IvState } from './iv';
 import type { Signal, SignalOutcome } from './signals';
 
@@ -53,6 +53,7 @@ export interface SnapshotSink {
 // Push channel the dashboard subscribes to (engine WS).
 export interface SignalSink {
 	publishSurface(surface: GammaSurface): void;
+	publishGrid(grid: GammaSurfaceGrid): void;
 	publishIvState(state: IvState): void;
 	publishSignal(signal: Signal): void;
 	publishOutcome(outcome: SignalOutcome): void;

@@ -26,6 +26,7 @@
 	const profileSurface = $derived(store.surface(scope, expiry));
 	const combinedAll = $derived(store.surface('combined', 'all'));
 	const combined0 = $derived(store.surface('combined', '0dte'));
+	const combinedGrid = $derived(store.grid('combined'));
 	const spxIv = $derived(store.iv('SPX'));
 	const lastPinPop = $derived(store.signals.find((s) => s.kind === 'pin' || s.kind === 'pop'));
 </script>
@@ -61,7 +62,7 @@
 
 		<section class="panel surface">
 			<header><h2>3D gamma surface · strike × expiry × net GEX</h2></header>
-			<GammaSurface3D surfaceAll={combinedAll} surface0={combined0} />
+			<GammaSurface3D grid={combinedGrid} />
 		</section>
 
 		<section class="panel iv">
@@ -71,7 +72,7 @@
 
 		<section class="panel levels">
 			<header><h2>key levels · pin / pop</h2></header>
-			<KeyLevels surface={combinedAll} pinpop={lastPinPop} />
+			<KeyLevels surface={combinedAll} surface0={combined0} pinpop={lastPinPop} />
 		</section>
 
 		<section class="panel feed">

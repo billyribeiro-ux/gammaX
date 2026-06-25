@@ -1,14 +1,27 @@
 <script lang="ts">
 	import type { GammaSurface, Signal } from '@gammax/contracts';
 
-	let { surface, pinpop }: { surface: GammaSurface | undefined; pinpop: Signal | undefined } =
-		$props();
+	let {
+		surface,
+		surface0,
+		pinpop
+	}: {
+		surface: GammaSurface | undefined;
+		surface0: GammaSurface | undefined;
+		pinpop: Signal | undefined;
+	} = $props();
 
 	const flipDistPct = $derived(
 		surface && surface.gammaFlip != null
 			? ((surface.spot - surface.gammaFlip) / surface.spot) * 100
 			: null
 	);
+
+	const charmDrift = $derived.by(() => {
+		const cs = surface0?.charmByStrike;
+		if (!cs || cs.length === 0) return null;
+		return cs.reduce((a, b) => a + b.charm, 0);
+	});
 	const pin = $derived(
 		pinpop && (pinpop.kind === 'pin' || pinpop.kind === 'pop') ? pinpop : undefined
 	);
@@ -47,6 +60,16 @@
 				<dd class="mono dim">
 					{surface.volTrigger != null ? surface.volTrigger.toFixed(0) : '—'}
 					<span class="est">est</span>
+				</dd>
+			</div>
+			<div>
+				<dt>0DTE charm drift</dt>
+				<dd class="mono dim">
+					{#if charmDrift != null}
+						{charmDrift >= 0 ? '↑' : '↓'} into close
+					{:else}
+						—
+					{/if}
 				</dd>
 			</div>
 		</dl>

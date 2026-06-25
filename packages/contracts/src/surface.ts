@@ -12,6 +12,14 @@ export const StrikeGex = z.object({
 });
 export type StrikeGex = z.infer<typeof StrikeGex>;
 
+// Per-strike dealer charm exposure (−∂Δ/∂T), signed. Surfaces the 0DTE into-
+// the-close delta drift.
+export const CharmStrike = z.object({
+	strike: z.number().positive(),
+	charm: z.number()
+});
+export type CharmStrike = z.infer<typeof CharmStrike>;
+
 // A gamma-exposure surface for one scope (SPX / SPY / combined) and expiry
 // horizon (all-expiry / 0DTE). For scope='combined', strikes are on the SPX
 // index scale (SPY strikes mapped ×10, dollar-gamma summed in raw dollars).
@@ -29,6 +37,26 @@ export const GammaSurface = z.object({
 	callWall: z.number().nullable(),
 	putWall: z.number().nullable(),
 	// Documented heuristic estimate (≠ zero-gamma); optional.
-	volTrigger: z.number().nullable().optional()
+	volTrigger: z.number().nullable().optional(),
+	// Per-strike charm exposure — populated on 0DTE surfaces only.
+	charmByStrike: z.array(CharmStrike).optional()
 });
 export type GammaSurface = z.infer<typeof GammaSurface>;
+
+// One expiry's strike profile, for the 3D strike × DTE × netGEX surface.
+export const ExpirySlice = z.object({
+	dte: z.number().int().nonnegative(),
+	byStrike: z.array(StrikeGex),
+	netGex: z.number()
+});
+export type ExpirySlice = z.infer<typeof ExpirySlice>;
+
+// The full strike × DTE × netGEX grid for one scope (combined strikes on the
+// SPX axis). Drives the 3D surface.
+export const GammaSurfaceGrid = z.object({
+	asOf: EpochMillis,
+	scope: SurfaceScope,
+	spot: z.number().positive(),
+	slices: z.array(ExpirySlice)
+});
+export type GammaSurfaceGrid = z.infer<typeof GammaSurfaceGrid>;

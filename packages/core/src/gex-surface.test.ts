@@ -5,6 +5,7 @@ import { optionGexDollars } from './gex';
 import {
 	aggregateByStrike,
 	buildSurface,
+	buildSurfaceGrid,
 	combineBooks,
 	findGammaFlip,
 	findWalls,
@@ -23,6 +24,7 @@ function opt(
 		oi: 1000,
 		sigma: 0.2,
 		t: 0.02,
+		dte: 0,
 		strikeScale: 1,
 		r: 0.04,
 		q: 0,
@@ -148,5 +150,20 @@ describe('buildSurface + priceBook end-to-end', () => {
 		expect(['positive', 'negative']).toContain(surface.regime);
 		const key = findKeyStrike(book, 5000);
 		expect(key?.strike).toBe(4950); // first max-OI bucket (all equal OI)
+	});
+});
+
+describe('buildSurfaceGrid', () => {
+	it('groups the book into one DTE slice per expiry, sorted ascending', () => {
+		const book: PricedOption[] = [
+			opt({ axisStrike: 5000, nativeStrike: 5000, right: 'C', sign: 1, dte: 7 }),
+			opt({ axisStrike: 5000, nativeStrike: 5000, right: 'P', sign: -1, dte: 0 }),
+			opt({ axisStrike: 5050, nativeStrike: 5050, right: 'C', sign: 1, dte: 0 }),
+			opt({ axisStrike: 5000, nativeStrike: 5000, right: 'C', sign: 1, dte: 35 })
+		];
+		const grid = buildSurfaceGrid({ scope: 'combined', asOf: 1, axisSpot: 5000, book });
+		expect(grid.slices.map((s) => s.dte)).toEqual([0, 7, 35]);
+		expect(grid.scope).toBe('combined');
+		expect(grid.slices[0]?.byStrike.length).toBeGreaterThan(0);
 	});
 });

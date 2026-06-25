@@ -2,6 +2,7 @@ import type {
 	EngineMessage,
 	FeedStatus,
 	GammaSurface,
+	GammaSurfaceGrid,
 	IvState,
 	Signal,
 	SignalOutcome,
@@ -56,6 +57,10 @@ export class EngineWsServer implements SignalSink {
 
 	publishSurface(surface: GammaSurface): void {
 		this.broadcast({ type: 'surface', surface }, `surface:${surface.scope}:${surface.expiryScope}`);
+	}
+
+	publishGrid(grid: GammaSurfaceGrid): void {
+		this.broadcast({ type: 'grid', grid }, `grid:${grid.scope}`);
 	}
 
 	publishIvState(iv: IvState): void {

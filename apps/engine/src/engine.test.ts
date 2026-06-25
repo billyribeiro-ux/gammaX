@@ -1,6 +1,7 @@
 import type {
 	FeedStatus,
 	GammaSurface,
+	GammaSurfaceGrid,
 	IvState,
 	Signal,
 	SignalOutcome,
@@ -15,12 +16,16 @@ import { Grader } from './grader';
 
 class CapturingSink implements SignalSink {
 	surfaces: GammaSurface[] = [];
+	grids: GammaSurfaceGrid[] = [];
 	ivStates: IvState[] = [];
 	signals: Signal[] = [];
 	outcomes: SignalOutcome[] = [];
 	statuses: FeedStatus[] = [];
 	publishSurface(s: GammaSurface): void {
 		this.surfaces.push(s);
+	}
+	publishGrid(g: GammaSurfaceGrid): void {
+		this.grids.push(g);
 	}
 	publishIvState(s: IvState): void {
 		this.ivStates.push(s);
@@ -71,6 +76,12 @@ describe('Engine end-to-end (synthetic → core → recorder → sink)', () => {
 		expect(sink.surfaces.some((s) => s.scope === 'SPX')).toBe(true);
 		expect(sink.surfaces.some((s) => s.scope === 'SPY')).toBe(true);
 		expect(sink.ivStates.some((s) => s.underlying === 'SPX')).toBe(true);
+
+		// 3D grid has multiple DTE slices; 0DTE surface carries charm.
+		const grid = sink.grids.at(-1);
+		expect(grid?.slices.length).toBeGreaterThan(1);
+		const comb0 = sink.surfaces.findLast((s) => s.scope === 'combined' && s.expiryScope === '0dte');
+		expect(comb0?.charmByStrike?.length).toBeGreaterThan(0);
 
 		// At least one signal emitted (pin/pop fires deterministically) and graded.
 		expect(sink.signals.length).toBeGreaterThan(0);

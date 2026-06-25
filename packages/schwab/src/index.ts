@@ -6,5 +6,6 @@ export * from './mappers';
 export * from './oauth';
 export * from './rest';
 export * from './streamer';
+export * from './stream-overlay';
 export * from './feed';
 export { createSchwabFeed } from './factory';

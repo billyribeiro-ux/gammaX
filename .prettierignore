@@ -13,3 +13,6 @@ apps/web/static/
 data/
 *.sqlite
 *.sqlite3
+
+# generated migrations
+packages/recorder/drizzle/

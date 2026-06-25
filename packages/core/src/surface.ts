@@ -2,6 +2,7 @@ import type {
 	ChainSnapshot,
 	ExpiryScope,
 	GammaSurface,
+	GammaSurfaceGrid,
 	OptionQuote,
 	OptionRight,
 	RiskParams,
@@ -25,6 +26,7 @@ export interface PricedOption {
 	oi: number;
 	sigma: number;
 	t: number;
+	dte: number;
 	sign: 1 | -1;
 	strikeScale: number;
 	r: number;
@@ -87,6 +89,7 @@ export function priceBook(snapshot: ChainSnapshot, opts: PriceBookOptions): Pric
 			oi: quote.openInterest,
 			sigma,
 			t,
+			dte: quote.dte,
 			sign: sign(quote.right),
 			strikeScale: scale,
 			r: opts.riskParams.r,
@@ -261,4 +264,29 @@ export function buildSurface(
 // Combine SPX (scale 1) and SPY (scale 10) priced books onto one SPX-axis book.
 export function combineBooks(spxBook: PricedOption[], spyBook: PricedOption[]): PricedOption[] {
 	return [...spxBook, ...spyBook];
+}
+
+export interface BuildGridParams {
+	scope: SurfaceScope;
+	asOf: number;
+	axisSpot: number;
+	book: readonly PricedOption[];
+}
+
+// The strike × DTE × netGEX grid: the book grouped by days-to-expiry, each
+// expiry aggregated into a strike profile at current spot. Drives the 3D surface.
+export function buildSurfaceGrid(params: BuildGridParams): GammaSurfaceGrid {
+	const byDte = new Map<number, PricedOption[]>();
+	for (const opt of params.book) {
+		const arr = byDte.get(opt.dte);
+		if (arr) arr.push(opt);
+		else byDte.set(opt.dte, [opt]);
+	}
+	const slices = [...byDte.entries()]
+		.sort((a, b) => a[0] - b[0])
+		.map(([dte, opts]) => {
+			const byStrike = aggregateByStrike(opts, params.axisSpot);
+			return { dte, byStrike, netGex: byStrike.reduce((s, x) => s + x.netGex, 0) };
+		});
+	return { asOf: params.asOf, scope: params.scope, spot: params.axisSpot, slices };
 }

@@ -15,6 +15,8 @@ import {
 	atmIvCm30,
 	buildEvalContext,
 	buildSurface,
+	buildSurfaceGrid,
+	charmOverlay,
 	combineBooks,
 	DEFAULT_SIGNAL_RULES,
 	detectIvVelocitySignal,
@@ -125,16 +127,12 @@ export class Engine {
 				},
 				{ computeVolTrigger: true }
 			);
+			const book0 = priceBook(filterZeroDte(snap), { riskParams: rp });
 			const surf0 = buildSurface(
-				{
-					scope: u,
-					expiryScope: '0dte',
-					asOf: ts,
-					axisSpot: snap.underlying.last,
-					book: priceBook(filterZeroDte(snap), { riskParams: rp })
-				},
+				{ scope: u, expiryScope: '0dte', asOf: ts, axisSpot: snap.underlying.last, book: book0 },
 				{ computeVolTrigger: true }
 			);
+			surf0.charmByStrike = charmOverlay(book0, snap.underlying.last);
 			this.persistSurface(surfAll);
 			this.persistSurface(surf0);
 
@@ -180,8 +178,12 @@ export class Engine {
 				{ scope: 'combined', expiryScope: '0dte', asOf: ts, axisSpot, book: combined0 },
 				{ computeVolTrigger: true }
 			);
+			comb0.charmByStrike = charmOverlay(combined0, axisSpot);
 			this.persistSurface(combAll);
 			this.persistSurface(comb0);
+			this.sink.publishGrid(
+				buildSurfaceGrid({ scope: 'combined', asOf: ts, axisSpot, book: combinedBook })
+			);
 
 			const flip = detectRegimeFlip(this.prevSurfaces.get('combined:all') ?? null, combAll, 'SPX');
 			if (flip && rth) candidates.push({ key: `regime:SPX:${combAll.regime}`, signal: flip });

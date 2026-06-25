@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { EpochMillis, SurfaceScope, UnderlyingSymbol } from './primitives';
-import { GammaSurface } from './surface';
+import { GammaSurface, GammaSurfaceGrid } from './surface';
 import { IvState } from './iv';
 import { Signal, SignalOutcome } from './signals';
 import { FeedStatus } from './feed';
@@ -15,6 +15,7 @@ export const EngineMessage = z.discriminatedUnion('type', [
 		scopes: z.array(SurfaceScope)
 	}),
 	z.object({ type: z.literal('surface'), surface: GammaSurface }),
+	z.object({ type: z.literal('grid'), grid: GammaSurfaceGrid }),
 	z.object({ type: z.literal('iv'), iv: IvState }),
 	z.object({ type: z.literal('signal'), signal: Signal }),
 	z.object({ type: z.literal('outcome'), outcome: SignalOutcome }),

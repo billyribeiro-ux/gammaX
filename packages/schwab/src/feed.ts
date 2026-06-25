@@ -11,6 +11,8 @@ import type {
 import { mapChainsResponse } from './mappers';
 import { ReauthorizationRequired } from './oauth';
 import { type SchwabRestClient, schwabRequestSymbol } from './rest';
+import { applyStreamQuotes, type StreamQuoteMap } from './stream-overlay';
+import type { SchwabStreamer } from './streamer';
 
 export interface SchwabFeedOptions {
 	rest: SchwabRestClient;
@@ -18,6 +20,10 @@ export interface SchwabFeedOptions {
 	strikeCount?: number;
 	daysAhead?: number;
 	now?: () => number;
+	// Optional low-latency layer: when provided, the feed starts it, subscribes
+	// LEVELONE_OPTIONS to the chain symbols, and overlays the freshest streamed
+	// bid/ask/last onto each REST snapshot.
+	streamer?: SchwabStreamer;
 }
 
 // READ-ONLY MarketFeed. Polls REST option chains (full point-in-time snapshots
@@ -33,6 +39,8 @@ export class SchwabFeed implements MarketFeed {
 	private running = false;
 	private lastUpdateTs: number | null = null;
 	private delayed = false;
+	private streamConnected = false;
+	private readonly quoteMap: StreamQuoteMap = new Map();
 	private readonly now: () => number;
 
 	constructor(private readonly opts: SchwabFeedOptions) {
@@ -60,6 +68,15 @@ export class SchwabFeed implements MarketFeed {
 	async start(): Promise<void> {
 		if (this.running) return;
 		this.running = true;
+		const streamer = this.opts.streamer;
+		if (streamer) {
+			streamer.onData((service, quotes) => {
+				if (service !== 'LEVELONE_OPTIONS') return;
+				for (const q of quotes) this.quoteMap.set(q.symbol, q.fields);
+			});
+			streamer.onStatus((s) => (this.streamConnected = s.connected));
+			await streamer.start();
+		}
 		await this.poll();
 		const pollMs = this.opts.pollMs ?? 2000;
 		this.timer = setInterval(() => void this.poll(), pollMs);
@@ -71,6 +88,7 @@ export class SchwabFeed implements MarketFeed {
 			clearInterval(this.timer);
 			this.timer = null;
 		}
+		await this.opts.streamer?.stop();
 	}
 
 	private dateStr(offsetDays: number): string {
@@ -88,12 +106,14 @@ export class SchwabFeed implements MarketFeed {
 					fromDate: this.dateStr(0),
 					toDate: this.dateStr(this.opts.daysAhead ?? 45)
 				});
-				const snapshot = mapChainsResponse(raw, {
+				const base = mapChainsResponse(raw, {
 					underlying,
 					captureTs,
 					source: 'schwab',
 					delayed: this.delayed
 				});
+				const snapshot = this.opts.streamer ? applyStreamQuotes(base, this.quoteMap) : base;
+				this.opts.streamer?.subscribeOptions(snapshot.quotes.map((q) => q.symbol));
 				this.lastUpdateTs = captureTs;
 				for (const l of this.chainListeners) l(snapshot);
 			} catch (err) {
@@ -116,7 +136,10 @@ export class SchwabFeed implements MarketFeed {
 			delayed: this.delayed,
 			lastUpdateTs: this.lastUpdateTs,
 			symbolsSubscribed: this.symbols.length,
-			rateRemaining: null
+			rateRemaining: null,
+			...(this.opts.streamer
+				? { detail: this.streamConnected ? 'stream:connected' : 'stream:connecting' }
+				: {})
 		};
 		for (const l of this.statusListeners) l(status);
 	}

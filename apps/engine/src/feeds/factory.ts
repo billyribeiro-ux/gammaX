@@ -12,7 +12,10 @@ export function createFeed(config: EngineConfig, recorder: Recorder): MarketFeed
 		case 'replay':
 			return new ReplayFeed({ recorder, symbols: config.underlyings, realtime: true });
 		case 'schwab':
-			return createSchwabFeed({ feed: { pollMs: config.recomputeMs } }).feed;
+			return createSchwabFeed({
+				feed: { pollMs: config.recomputeMs },
+				enableStream: process.env.SCHWAB_STREAM === 'true'
+			}).feed;
 		default: {
 			const _exhaustive: never = config.feedSource;
 			return _exhaustive;

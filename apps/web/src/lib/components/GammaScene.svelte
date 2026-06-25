@@ -1,12 +1,9 @@
 <script lang="ts">
-	import type { GammaSurface } from '@gammax/contracts';
+	import type { GammaSurfaceGrid } from '@gammax/contracts';
 	import { T } from '@threlte/core';
 	import { OrbitControls } from '@threlte/extras';
 
-	let {
-		surfaceAll,
-		surface0
-	}: { surfaceAll: GammaSurface | undefined; surface0: GammaSurface | undefined } = $props();
+	let { grid }: { grid: GammaSurfaceGrid | undefined } = $props();
 
 	interface Bar {
 		x: number;
@@ -16,29 +13,28 @@
 		is0dte: boolean;
 	}
 
+	// strike (x) × DTE slice (z) × net GEX (height). 0DTE slice highlighted.
 	const bars = $derived.by((): Bar[] => {
-		const rows = [
-			{ surface: surfaceAll, z: -1, is0dte: false },
-			{ surface: surface0, z: 1, is0dte: true }
-		].filter(
-			(r): r is { surface: GammaSurface; z: number; is0dte: boolean } => r.surface !== undefined
-		);
-		const all = rows.flatMap((r) => r.surface.byStrike);
+		if (!grid || grid.slices.length === 0) return [];
+		const all = grid.slices.flatMap((s) => s.byStrike);
 		const maxAbs = Math.max(1, ...all.map((s) => Math.abs(s.netGex)));
+		const strikes = [...new Set(all.map((s) => s.strike))].sort((a, b) => a - b);
+		const idx = new Map(strikes.map((k, i) => [k, i]));
+		const n = strikes.length;
+		const depth = grid.slices.length;
 		const out: Bar[] = [];
-		for (const r of rows) {
-			const ks = r.surface.byStrike;
-			const n = ks.length;
-			ks.forEach((s, i) => {
+		grid.slices.forEach((slice, zi) => {
+			for (const s of slice.byStrike) {
+				const i = idx.get(s.strike) ?? 0;
 				out.push({
-					x: (i - n / 2) * 0.5,
-					z: r.z * 1.4,
+					x: (i - n / 2) * 0.45,
+					z: (zi - (depth - 1) / 2) * 2.2,
 					h: (s.netGex / maxAbs) * 6,
 					positive: s.netGex >= 0,
-					is0dte: r.is0dte
+					is0dte: slice.dte === 0
 				});
-			});
-		}
+			}
+		});
 		return out;
 	});
 </script>
@@ -56,9 +52,9 @@
 		<T.MeshStandardMaterial
 			color={b.positive ? '#46d98a' : '#e85d42'}
 			emissive={b.positive ? '#46d98a' : '#e85d42'}
-			emissiveIntensity={b.is0dte ? 0.5 : 0.05}
+			emissiveIntensity={b.is0dte ? 0.55 : 0.05}
 			transparent
-			opacity={b.is0dte ? 1 : 0.8}
+			opacity={b.is0dte ? 1 : 0.72}
 		/>
 	</T.Mesh>
 {/each}
