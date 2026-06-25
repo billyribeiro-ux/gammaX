@@ -13,9 +13,12 @@ import { WebSocket, WebSocketServer } from 'ws';
 
 // Broadcasts EngineMessages to dashboard clients. Latest surfaces/iv/status are
 // cached and replayed to each new client so the UI is immediately populated.
+const RECENT_CAP = 40;
+
 export class EngineWsServer implements SignalSink {
 	private readonly wss: WebSocketServer;
 	private readonly latest = new Map<string, EngineMessage>();
+	private readonly recent: EngineMessage[] = []; // recent signals + outcomes for replay
 
 	constructor(
 		port: number,
@@ -34,7 +37,13 @@ export class EngineWsServer implements SignalSink {
 				} satisfies EngineMessage)
 			);
 			for (const msg of this.latest.values()) ws.send(JSON.stringify(msg));
+			for (const msg of this.recent) ws.send(JSON.stringify(msg));
 		});
+	}
+
+	private remember(msg: EngineMessage): void {
+		this.recent.push(msg);
+		if (this.recent.length > RECENT_CAP) this.recent.shift();
 	}
 
 	private broadcast(msg: EngineMessage, cacheKey?: string): void {
@@ -54,11 +63,15 @@ export class EngineWsServer implements SignalSink {
 	}
 
 	publishSignal(signal: Signal): void {
-		this.broadcast({ type: 'signal', signal });
+		const msg: EngineMessage = { type: 'signal', signal };
+		this.remember(msg);
+		this.broadcast(msg);
 	}
 
 	publishOutcome(outcome: SignalOutcome): void {
-		this.broadcast({ type: 'outcome', outcome });
+		const msg: EngineMessage = { type: 'outcome', outcome };
+		this.remember(msg);
+		this.broadcast(msg);
 	}
 
 	publishStatus(status: FeedStatus): void {
