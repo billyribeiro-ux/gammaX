@@ -16,7 +16,8 @@
 		"@gammax/replay": "workspace:*",
 		"@gammax/schwab": "workspace:*",
 		"temporal-polyfill": "catalog:",
-		"ws": "catalog:"
+		"ws": "catalog:",
+		"zod": "catalog:"
 	},
 	"devDependencies": {
 		"@types/node": "catalog:",
