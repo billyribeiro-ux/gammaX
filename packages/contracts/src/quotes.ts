@@ -9,6 +9,10 @@ export const OptionQuote = z.object({
 	root: z.string().optional(), // option root, e.g. "SPXW" / "SPY"
 	expiry: IsoDate,
 	dte: z.number().int().nonnegative(), // days to expiry at captureTs (0 = 0DTE)
+	// Precise settlement instant (epoch ms). Adapters fill it (they know the
+	// AM/PM-settle + ET-tz convention); the pure core uses it for sub-day 0DTE
+	// time-to-expiry. Falls back to `dte` when absent.
+	expiryMillis: EpochMillis.optional(),
 	right: OptionRight,
 	strike: z.number().positive(),
 	bid: z.number().nonnegative(),
