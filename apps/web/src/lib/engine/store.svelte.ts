@@ -2,8 +2,10 @@ import {
 	EngineMessage,
 	type ExpiryScope,
 	type FeedStatus,
+	type GammaScalpScannerState,
 	type GammaSurface,
 	type GammaSurfaceGrid,
+	type IvScannerState,
 	type IvState,
 	type Signal,
 	type SignalOutcome,
@@ -21,6 +23,8 @@ export class EngineStore {
 	ivStates = $state<Record<string, IvState>>({});
 	signals = $state<Signal[]>([]);
 	outcomes = $state<Record<string, SignalOutcome>>({});
+	ivScan = $state<IvScannerState | null>(null);
+	gammaScalp = $state<GammaScalpScannerState | null>(null);
 	lastMessageTs = $state<number | null>(null);
 	underlyings = $state<UnderlyingSymbol[]>(['SPX', 'SPY']);
 	scopes = $state<SurfaceScope[]>(['combined', 'SPX', 'SPY']);
@@ -150,6 +154,12 @@ export class EngineStore {
 				break;
 			case 'status':
 				this.status = msg.status;
+				break;
+			case 'iv_scan':
+				this.ivScan = msg.ivScan;
+				break;
+			case 'gamma_scalp':
+				this.gammaScalp = msg.gammaScalp;
 				break;
 			default: {
 				const _exhaustive: never = msg;

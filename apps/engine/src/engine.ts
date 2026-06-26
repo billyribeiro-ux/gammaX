@@ -26,8 +26,13 @@ import {
 	evaluateRules,
 	filterZeroDte,
 	findKeyStrike,
+	type GammaScalpInput,
+	type IvScanInput,
 	ivVelocity,
-	priceBook
+	priceBook,
+	realizedVol,
+	scanGammaScalp,
+	scanIvVelocity
 } from '@gammax/core';
 import type { Recorder } from '@gammax/recorder';
 import type { EngineConfig } from './config';
@@ -55,6 +60,7 @@ export class Engine {
 	private readonly grader: Grader;
 	private readonly latest = new Map<UnderlyingSymbol, ChainSnapshot>();
 	private readonly ivBuffers = new Map<UnderlyingSymbol, IvSample[]>();
+	private readonly spotBuffers = new Map<UnderlyingSymbol, { ts: number; spot: number }[]>();
 	private readonly ivStates = new Map<UnderlyingSymbol, IvState>();
 	private readonly prevSurfaces = new Map<string, GammaSurface>();
 	private activeKeys = new Set<string>();
@@ -73,7 +79,7 @@ export class Engine {
 	}
 
 	wireFeed(): void {
-		this.feed.subscribeChains(this.config.underlyings, (snap) => this.onChain(snap));
+		this.feed.subscribeChains(this.config.watchlist, (snap) => this.onChain(snap));
 		this.feed.onStatus((status) => this.sink.publishStatus(status));
 		this.feed.onError((err) => logError(`feed (${err.fatal ? 'fatal' : 'warn'})`, err.message));
 	}
@@ -118,29 +124,40 @@ export class Engine {
 		const rth = !this.config.sessionAware || isRth(ts, this.config.rthOpen, this.config.rthClose);
 		const late = !this.config.sessionAware || isLateSession(ts);
 		const candidates: { key: string; signal: Signal }[] = [];
+		const core = new Set<UnderlyingSymbol>(this.config.underlyings);
+		const ivInputs: IvScanInput[] = [];
+		const scalpInputs: GammaScalpInput[] = [];
 
-		for (const u of this.config.underlyings) {
+		// One pass over the whole watchlist: build each symbol's surface + IV-velocity
+		// + realized vol, accumulate scanner inputs for all, but only publish/record
+		// surfaces + IV for the SPX/SPY core (the dashboard's surface panels).
+		for (const u of this.config.watchlist) {
 			const snap = this.latest.get(u);
 			if (!snap) continue;
+			const spot = snap.underlying.last;
 			const rp = this.riskParams(u);
 			const surfAll = buildSurface(
 				{
 					scope: u,
 					expiryScope: 'all',
 					asOf: ts,
-					axisSpot: snap.underlying.last,
+					axisSpot: spot,
 					book: priceBook(snap, { riskParams: rp })
 				},
 				{ computeVolTrigger: true }
 			);
 			const book0 = priceBook(filterZeroDte(snap), { riskParams: rp });
 			const surf0 = buildSurface(
-				{ scope: u, expiryScope: '0dte', asOf: ts, axisSpot: snap.underlying.last, book: book0 },
+				{ scope: u, expiryScope: '0dte', asOf: ts, axisSpot: spot, book: book0 },
 				{ computeVolTrigger: true }
 			);
-			surf0.charmByStrike = charmOverlay(book0, snap.underlying.last);
-			this.persistSurface(surfAll);
-			this.persistSurface(surf0);
+			surf0.charmByStrike = charmOverlay(book0, spot);
+
+			const sbuf = this.spotBuffers.get(u) ?? [];
+			sbuf.push({ ts, spot });
+			const sTrimmed = sbuf.slice(-Math.max(this.config.ivWindow * 2, 240));
+			this.spotBuffers.set(u, sTrimmed);
+			const rVol = realizedVol(sTrimmed);
 
 			const expiryIvs = atmIvByExpiry(snap, rp);
 			const buf = this.ivBuffers.get(u) ?? [];
@@ -158,10 +175,24 @@ export class Engine {
 				series: trimmed.slice(-120)
 			};
 			this.ivStates.set(u, ivState);
-			this.sink.publishIvState(ivState);
-			void this.recorder.writeIvState(ivState).catch((e) => logError('writeIvState', e));
-			const ivSig = detectIvVelocitySignal(ivState, { zThreshold: this.config.ivZThreshold });
-			if (ivSig && rth) candidates.push({ key: `${ivSig.kind}:${u}`, signal: ivSig });
+
+			ivInputs.push({ symbol: u, iv: ivState });
+			scalpInputs.push({
+				symbol: u,
+				surface: surfAll,
+				atmIv: ivState.atmIv0dte ?? ivState.atmIvCm30,
+				realizedVol: rVol,
+				horizonYears: 1 / 252
+			});
+
+			if (core.has(u)) {
+				this.persistSurface(surfAll);
+				this.persistSurface(surf0);
+				this.sink.publishIvState(ivState);
+				void this.recorder.writeIvState(ivState).catch((e) => logError('writeIvState', e));
+				const ivSig = detectIvVelocitySignal(ivState, { zThreshold: this.config.ivZThreshold });
+				if (ivSig && rth) candidates.push({ key: `${ivSig.kind}:${u}`, signal: ivSig });
+			}
 		}
 
 		const spx = this.latest.get('SPX');
@@ -220,6 +251,10 @@ export class Engine {
 			}
 			this.prevSurfaces.set('combined:all', combAll);
 		}
+
+		// Rank the whole watchlist for both scanners and broadcast.
+		this.sink.publishIvScan(scanIvVelocity(ivInputs, ts, this.config.ivZThreshold));
+		this.sink.publishGammaScalp(scanGammaScalp(scalpInputs, ts));
 
 		const currentKeys = new Set(candidates.map((c) => c.key));
 		for (const c of candidates) {

@@ -1,7 +1,9 @@
 import type {
 	FeedStatus,
+	GammaScalpScannerState,
 	GammaSurface,
 	GammaSurfaceGrid,
+	IvScannerState,
 	IvState,
 	Signal,
 	SignalOutcome,
@@ -21,6 +23,8 @@ class CapturingSink implements SignalSink {
 	signals: Signal[] = [];
 	outcomes: SignalOutcome[] = [];
 	statuses: FeedStatus[] = [];
+	ivScans: IvScannerState[] = [];
+	gammaScalps: GammaScalpScannerState[] = [];
 	publishSurface(s: GammaSurface): void {
 		this.surfaces.push(s);
 	}
@@ -38,6 +42,12 @@ class CapturingSink implements SignalSink {
 	}
 	publishStatus(s: FeedStatus): void {
 		this.statuses.push(s);
+	}
+	publishIvScan(s: IvScannerState): void {
+		this.ivScans.push(s);
+	}
+	publishGammaScalp(s: GammaScalpScannerState): void {
+		this.gammaScalps.push(s);
 	}
 }
 
@@ -89,6 +99,13 @@ describe('Engine end-to-end (synthetic → core → recorder → sink)', () => {
 		expect(['confirmed', 'rejected', 'partial', 'inconclusive']).toContain(
 			sink.outcomes[0]?.result
 		);
+
+		// Both scanners rank the full watchlist (SPX + SPY here).
+		const ivScan = sink.ivScans.at(-1);
+		expect(ivScan?.rows.length).toBe(2);
+		const scalp = sink.gammaScalps.at(-1);
+		expect(scalp?.rows.length).toBe(2);
+		expect(['long_gamma', 'short_gamma', 'neutral']).toContain(scalp?.rows[0]?.mode);
 
 		await recorder.close();
 	});

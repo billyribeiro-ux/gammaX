@@ -4,6 +4,7 @@ import type { ChainSnapshot, TradePrint } from './quotes';
 import type { GammaSurface, GammaSurfaceGrid } from './surface';
 import type { IvState } from './iv';
 import type { Signal, SignalOutcome } from './signals';
+import type { GammaScalpScannerState, IvScannerState } from './scanner';
 
 // Health/lifecycle snapshot a feed emits; also broadcast to the dashboard.
 export const FeedStatus = z.object({
@@ -58,4 +59,6 @@ export interface SignalSink {
 	publishSignal(signal: Signal): void;
 	publishOutcome(outcome: SignalOutcome): void;
 	publishStatus(status: FeedStatus): void;
+	publishIvScan(state: IvScannerState): void;
+	publishGammaScalp(state: GammaScalpScannerState): void;
 }

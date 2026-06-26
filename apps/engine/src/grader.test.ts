@@ -1,8 +1,10 @@
 import type {
 	ChainSnapshot,
 	FeedStatus,
+	GammaScalpScannerState,
 	GammaSurface,
 	GammaSurfaceGrid,
+	IvScannerState,
 	IvState,
 	Signal,
 	SignalOutcome,
@@ -25,6 +27,8 @@ class CapturingSink implements SignalSink {
 		this.outcomes.push(o);
 	}
 	publishStatus(_s: FeedStatus): void {}
+	publishIvScan(_s: IvScannerState): void {}
+	publishGammaScalp(_s: GammaScalpScannerState): void {}
 }
 
 function chainAt(ts: number, last: number): ChainSnapshot {

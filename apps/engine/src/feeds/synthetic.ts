@@ -23,9 +23,100 @@ export interface SyntheticOptions {
 	now?: () => number;
 }
 
-const STEP: Record<UnderlyingSymbol, number> = { SPX: 25, SPY: 2.5 };
-const BASE_SPOT: Record<UnderlyingSymbol, number> = { SPX: 5000, SPY: 500 };
-const Q: Record<UnderlyingSymbol, number> = { SPX: 0, SPY: 0.012 };
+// Per-ticker synthetic profile. `tilt` skews OI toward calls (+) or puts (−) so
+// different tickers land in different dealer-gamma regimes; `volAmp` scales the
+// spot oscillation so realized vol differs across the watchlist; `ivPhase` offsets
+// the IV-spike clock so explosion/implosion fire on different names at different
+// times. Unknown tickers get a generic mid-cap profile.
+interface TickerProfile {
+	baseSpot: number;
+	step: number;
+	q: number;
+	root: string;
+	tilt: number;
+	volAmp: number;
+	ivBase: number;
+	ivPhase: number;
+}
+
+const PROFILES: Record<string, TickerProfile> = {
+	SPX: {
+		baseSpot: 5000,
+		step: 25,
+		q: 0,
+		root: 'SPXW',
+		tilt: -0.15,
+		volAmp: 1,
+		ivBase: 0.14,
+		ivPhase: 0
+	},
+	SPY: {
+		baseSpot: 500,
+		step: 2.5,
+		q: 0.012,
+		root: 'SPY',
+		tilt: -0.1,
+		volAmp: 1,
+		ivBase: 0.14,
+		ivPhase: 0
+	},
+	QQQ: {
+		baseSpot: 480,
+		step: 2.5,
+		q: 0.006,
+		root: 'QQQ',
+		tilt: 0.2,
+		volAmp: 1.3,
+		ivBase: 0.18,
+		ivPhase: 13
+	},
+	AAPL: {
+		baseSpot: 230,
+		step: 2.5,
+		q: 0.005,
+		root: 'AAPL',
+		tilt: 0.3,
+		volAmp: 1.6,
+		ivBase: 0.22,
+		ivPhase: 21
+	},
+	NVDA: {
+		baseSpot: 130,
+		step: 2.5,
+		q: 0.0003,
+		root: 'NVDA',
+		tilt: 0.45,
+		volAmp: 2.4,
+		ivBase: 0.42,
+		ivPhase: 7
+	},
+	TSLA: {
+		baseSpot: 250,
+		step: 2.5,
+		q: 0,
+		root: 'TSLA',
+		tilt: -0.4,
+		volAmp: 2.8,
+		ivBase: 0.5,
+		ivPhase: 33
+	}
+};
+
+function profileFor(underlying: UnderlyingSymbol): TickerProfile {
+	return (
+		PROFILES[underlying] ?? {
+			baseSpot: 100,
+			step: 1,
+			q: 0,
+			root: underlying,
+			tilt: 0,
+			volAmp: 1.4,
+			ivBase: 0.3,
+			ivPhase: (underlying.charCodeAt(0) * 7) % 40
+		}
+	);
+}
+
 const R = 0.04;
 const STRIKE_RANGE = 18;
 const EXPIRY_DTES = [0, 7, 35] as const;
@@ -37,17 +128,21 @@ function roundTo(value: number, step: number): number {
 // Deterministic (no RNG): spot oscillates + drifts; IV has a smile plus a
 // periodic spike to exercise the IV-velocity layer; OI is peaked at ATM with
 // explicit call/put walls so surfaces have clear structure.
-function spotForTick(underlying: UnderlyingSymbol, tick: number): number {
-	return BASE_SPOT[underlying] * (1 + 0.0015 * Math.sin(tick / 4) + 0.0004 * Math.sin(tick / 11));
+function spotForTick(p: TickerProfile, tick: number): number {
+	return (
+		p.baseSpot *
+		(1 + p.volAmp * 0.0015 * Math.sin(tick / 4) + p.volAmp * 0.0004 * Math.sin(tick / 11))
+	);
 }
 
-function atmIvForTick(tick: number): number {
-	const spike = tick % 50 === 0 && tick > 0 ? 0.06 : 0;
-	return 0.14 + 0.02 * Math.sin(tick / 8) + spike;
+function atmIvForTick(p: TickerProfile, tick: number): number {
+	const spike = (tick + p.ivPhase) % 50 === 0 && tick > 0 ? 0.06 : 0;
+	return p.ivBase + 0.02 * Math.sin((tick + p.ivPhase) / 8) + spike;
 }
 
 function buildQuote(
 	underlying: UnderlyingSymbol,
+	p: TickerProfile,
 	spot: number,
 	strike: number,
 	right: OptionRight,
@@ -61,19 +156,21 @@ function buildQuote(
 	const t = Math.max((expiryMillis - captureTs) / YEAR_MS, 1e-5);
 	const moneyness = strike / spot - 1;
 	const iv = Math.max(0.05, atmIv - 0.35 * moneyness + 2.5 * moneyness * moneyness);
-	const mid = Math.max(
-		0.05,
-		bsPrice(right, { s: spot, k: strike, t, r: R, q: Q[underlying], sigma: iv })
-	);
+	const mid = Math.max(0.05, bsPrice(right, { s: spot, k: strike, t, r: R, q: p.q, sigma: iv }));
 	const spread = Math.max(0.05, mid * 0.01);
-	let oi = Math.round(8000 * Math.exp(-(((strike - spot) / (spot * 0.025)) ** 2)));
+	// Base OI peaked at ATM, skewed call/put by the ticker's tilt so net dealer
+	// gamma lands in a definite regime, plus an explicit wall on the tilted side.
+	const tiltMul = right === 'C' ? 1 + p.tilt : 1 - p.tilt;
+	let oi = Math.round(
+		8000 * Math.max(0, tiltMul) * Math.exp(-(((strike - spot) / (spot * 0.025)) ** 2))
+	);
 	if (strike === callWall && right === 'C') oi += 25000;
 	if (strike === putWall && right === 'P') oi += 25000;
 	const expiry = new Date(expiryMillis).toISOString().slice(0, 10);
 	return {
-		symbol: buildOsi(underlying === 'SPX' ? 'SPXW' : 'SPY', expiry, right, strike),
+		symbol: buildOsi(p.root, expiry, right, strike),
 		underlying,
-		root: underlying === 'SPX' ? 'SPXW' : 'SPY',
+		root: p.root,
 		expiry,
 		dte,
 		expiryMillis,
@@ -92,10 +189,11 @@ export function buildSyntheticSnapshot(
 	tick: number,
 	captureTs: number
 ): ChainSnapshot {
-	const spot = spotForTick(underlying, tick);
-	const step = STEP[underlying];
+	const p = profileFor(underlying);
+	const spot = spotForTick(p, tick);
+	const step = p.step;
 	const center = roundTo(spot, step);
-	const atmIv = atmIvForTick(tick);
+	const atmIv = atmIvForTick(p, tick);
 	const callWall = center + 4 * step;
 	const putWall = center - 4 * step;
 	const quotes: OptionQuote[] = [];
@@ -108,6 +206,7 @@ export function buildSyntheticSnapshot(
 				quotes.push(
 					buildQuote(
 						underlying,
+						p,
 						spot,
 						strike,
 						right,

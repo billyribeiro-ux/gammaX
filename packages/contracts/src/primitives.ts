@@ -1,7 +1,11 @@
 import { z } from 'zod';
 
-// Phase 1 universe: S&P only. SPX (cash index) + SPY (ETF).
-export const UnderlyingSymbol = z.enum(['SPX', 'SPY']);
+// An underlying ticker. The S&P core (SPX cash index + SPY ETF) drives the combined
+// gamma surface; the scanner watchlist may add arbitrary tickers, so this is a
+// generic symbol rather than a fixed enum.
+export const UnderlyingSymbol = z
+	.string()
+	.regex(/^[A-Z][A-Z0-9.]{0,9}$/, 'expected an uppercase ticker');
 export type UnderlyingSymbol = z.infer<typeof UnderlyingSymbol>;
 
 export const OptionRight = z.enum(['C', 'P']);
@@ -11,9 +15,11 @@ export type OptionRight = z.infer<typeof OptionRight>;
 export const FeedSource = z.enum(['schwab', 'replay', 'synthetic']);
 export type FeedSource = z.infer<typeof FeedSource>;
 
-// A gamma surface is computed per book and combined. Combined strikes are on the
-// SPX index scale (SPY strikes mapped x10 — see core normalization).
-export const SurfaceScope = z.enum(['SPX', 'SPY', 'combined']);
+// The scope of a gamma surface: a single underlying ticker, or the special
+// 'combined' S&P book (SPX + SPY mapped to the SPX index scale — see core
+// normalization). A string (not a fixed enum) so watchlist tickers can each have
+// their own surface.
+export const SurfaceScope = z.string().regex(/^[A-Za-z][A-Za-z0-9.]{0,11}$/, 'expected a scope');
 export type SurfaceScope = z.infer<typeof SurfaceScope>;
 
 // The structural (all-expiry) map vs the 0DTE-only sub-surface. Their

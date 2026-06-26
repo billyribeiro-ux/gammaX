@@ -92,7 +92,8 @@ export class SchwabRestClient {
 	}
 }
 
-// Maps our underlying symbol to Schwab's request symbol ($SPX for the index).
-export function schwabRequestSymbol(underlying: 'SPX' | 'SPY'): string {
-	return underlying === 'SPX' ? '$SPX' : 'SPY';
+// Maps our underlying symbol to Schwab's request symbol. The S&P cash index is
+// quoted as `$SPX`; every other ticker (SPY ETF, equities) is requested as-is.
+export function schwabRequestSymbol(underlying: string): string {
+	return underlying === 'SPX' ? '$SPX' : underlying;
 }

@@ -1,8 +1,10 @@
 import type {
 	EngineMessage,
 	FeedStatus,
+	GammaScalpScannerState,
 	GammaSurface,
 	GammaSurfaceGrid,
+	IvScannerState,
 	IvState,
 	Signal,
 	SignalOutcome,
@@ -81,6 +83,14 @@ export class EngineWsServer implements SignalSink {
 
 	publishStatus(status: FeedStatus): void {
 		this.broadcast({ type: 'status', status }, 'status');
+	}
+
+	publishIvScan(ivScan: IvScannerState): void {
+		this.broadcast({ type: 'iv_scan', ivScan }, 'iv_scan');
+	}
+
+	publishGammaScalp(gammaScalp: GammaScalpScannerState): void {
+		this.broadcast({ type: 'gamma_scalp', gammaScalp }, 'gamma_scalp');
 	}
 
 	async close(): Promise<void> {

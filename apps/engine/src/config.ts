@@ -6,6 +6,9 @@ export const EngineConfig = z.object({
 	wsPort: z.number().int().default(8787),
 	recomputeMs: z.number().int().positive().default(1500),
 	underlyings: z.array(UnderlyingSymbol).default(['SPX', 'SPY']),
+	// Symbols the scanners cover. Includes the SPX/SPY core (which also drive the
+	// combined surface); extra tickers are scanned but not published as surfaces.
+	watchlist: z.array(UnderlyingSymbol).default(['SPX', 'SPY']),
 	gradeHorizons: z.array(z.number().int().positive()).default([15, 30, 60]),
 	// Max age of the realized spot relative to a signal's horizon before grading is
 	// abandoned as inconclusive. Guards against grading across a live data gap where
@@ -41,6 +44,7 @@ export function loadEngineConfig(env: NodeJS.ProcessEnv = process.env): EngineCo
 		wsPort: env.ENGINE_WS_PORT ? Number(env.ENGINE_WS_PORT) : undefined,
 		recomputeMs: env.ENGINE_RECOMPUTE_MS ? Number(env.ENGINE_RECOMPUTE_MS) : undefined,
 		underlyings: csv(env.ENGINE_UNDERLYINGS),
+		watchlist: csv(env.WATCHLIST),
 		gradeHorizons: csvNums(env.ENGINE_GRADE_HORIZONS),
 		graderMaxStalenessMs: env.ENGINE_GRADE_MAX_STALENESS_MS
 			? Number(env.ENGINE_GRADE_MAX_STALENESS_MS)

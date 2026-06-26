@@ -1,8 +1,10 @@
 import {
 	ChainSnapshot,
 	type FeedStatus,
+	type GammaScalpScannerState,
 	type GammaSurface,
 	type GammaSurfaceGrid,
+	type IvScannerState,
 	type IvState,
 	type Signal,
 	type SignalOutcome,
@@ -35,6 +37,14 @@ class CapturingSink implements SignalSink {
 		this.outcomes.push(o);
 	}
 	publishStatus(_s: FeedStatus): void {}
+	ivScans: IvScannerState[] = [];
+	gammaScalps: GammaScalpScannerState[] = [];
+	publishIvScan(s: IvScannerState): void {
+		this.ivScans.push(s);
+	}
+	publishGammaScalp(s: GammaScalpScannerState): void {
+		this.gammaScalps.push(s);
+	}
 }
 
 // Replays a committed recorded session through the full ReplayFeed → core →
