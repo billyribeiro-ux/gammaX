@@ -4,7 +4,7 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"dev": "tsx watch src/index.ts",
+		"dev": "DB_DRIVER=${DB_DRIVER:-sqlite} SQLITE_PATH=${SQLITE_PATH:-.gammax-dev.sqlite} FEED_SOURCE=${FEED_SOURCE:-synthetic} ENGINE_SESSION_AWARE=${ENGINE_SESSION_AWARE:-false} tsx watch src/index.ts",
 		"start": "tsx src/index.ts",
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run --passWithNoTests"
