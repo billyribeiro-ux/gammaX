@@ -1,206 +1,159 @@
 # Providing Schwab read-only credentials to gammaX
 
-This guide tells you **exactly which Schwab APIs gammaX uses, what credentials you
-must provide, and the step-by-step flow to obtain them** so the engine can capture
-real SPX + SPY option-chain snapshots.
+This is the definitive guide to which Schwab APIs gammaX uses, what credentials you
+must provide, how to get them, and how to troubleshoot the OAuth login — so the
+engine can capture real SPX + SPY option-chain snapshots.
 
 gammaX is **read-only market data only**. It never calls a trading or
-account-mutating endpoint and never requests a trading OAuth scope. (See the hard
-constraints in `CLAUDE.md`.)
+account-mutating endpoint and never requests a trading OAuth scope (a hard
+constraint in `CLAUDE.md`; confirmed in code — `SchwabAuth.buildAuthorizeUrl()`
+sends no `scope` param).
 
-> A citation-backed revision (with the official `developer.schwab.com` URLs for
-> each step) is being finalized; a few items flagged "⚠️ verifying" below are being
-> confirmed against the official docs. The substance here matches gammaX's actual
-> implementation in `packages/schwab/`.
+> **Provenance.** OAuth endpoints, token lifetimes, and the Market Data API
+> surface are confirmed from Schwab's own API spec and the developer portal. The
+> developer portal's _step-by-step_ pages (button labels, statuses) are login-gated
+> and un-archived, so those specifics are corroborated from widely-used community
+> sources (schwab-py, the "Unofficial Guide") and are marked **(community)**.
 
 ---
 
 ## 1. Which Schwab APIs we use
 
-Base host for everything: `https://api.schwabapi.com`
+Base host: `https://api.schwabapi.com`
 
-| API surface | Endpoints gammaX calls | Purpose | Required? |
-| --- | --- | --- | --- |
-| **OAuth 2.0** | `/v1/oauth/authorize`, `/v1/oauth/token` | Authenticate; mint & auto-refresh the access token | **Yes** |
-| **Market Data Production** | `/marketdata/v1/chains`, `/marketdata/v1/quotes`, `/marketdata/v1/pricehistory` | The data: SPX+SPY option chains with greeks/IV/open-interest, the `$SPX` index quote, SPY OHLC | **Yes — core** |
-| **Trader API – userPreference** | `/trader/v1/userPreference` | Read-only connection info for the WebSocket streamer (socket URL + client IDs) | **Optional** — only for live streaming; REST polling works without it |
+| API                             | Endpoints gammaX calls                                                          | Purpose                                                         | Required?                                                     |
+| ------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------- |
+| **OAuth 2.0**                   | `/v1/oauth/authorize`, `/v1/oauth/token`                                        | Authenticate; auto-refresh the access token                     | **Yes**                                                       |
+| **Market Data Production**      | `/marketdata/v1/chains`, `/marketdata/v1/quotes`, `/marketdata/v1/pricehistory` | SPX+SPY chains (greeks/IV/OI), the `$SPX` index quote, SPY OHLC | **Yes — core**                                                |
+| **Trader API – userPreference** | `/trader/v1/userPreference`                                                     | Read-only connection info for the optional WebSocket streamer   | **Optional** (REST polling needs only Market Data Production) |
 
-Exactly what the code requests (`packages/schwab/src/rest.ts`):
-
-- Chains: `GET /marketdata/v1/chains?symbol=$SPX&contractType=ALL&strikeCount=…` and `symbol=SPY`
-- Quotes: `GET /marketdata/v1/quotes?symbols=$SPX,SPY`
-- The S&P 500 **index** symbol is `$SPX` (leading `$`); SPY is plain `SPY`.
-
-> ⚠️ verifying: `/trader/v1/userPreference` sits under Schwab's "Accounts and
-> Trading" product even though it is read-only. So the **WebSocket streamer**
-> (500 ms updates) may require adding *both* the Market Data and Accounts &
-> Trading products to your app. The **default REST-polling path needs only the
-> Market Data Production product.** Recommended: start with Market Data only.
+Verified against Schwab's published Market Data spec — our `packages/schwab/src/rest.ts`
+targets exactly these paths (`GET /marketdata/v1/chains`, `/quotes`, `/pricehistory`).
+**Official support contact: `TraderAPI@Schwab.com`.**
 
 ---
 
-## 2. What you ultimately give me
+## 2. What you give me (the minimal set)
 
-Three secrets:
+1. **App Key** — your app's OAuth `client_id`
+2. **App Secret** — your app's `client_secret`
+3. A **valid 7-day refresh token** (or a fresh authorization `code` I exchange here)
 
-1. **App Key** — your OAuth `client_id`
-2. **App Secret**
-3. A **valid refresh token** (the 7-day OAuth refresh token)
-
-With these, the engine runs entirely headless from the server — it refreshes the
-30-minute access token itself. The only step that must happen on **your** machine
-is the one-time browser login (Step D); this environment is headless and cannot
-open Schwab's login page.
+You never give me your Schwab brokerage password — that's entered only on Schwab's
+own login page. Secrets I receive go **only** into env / a gitignored `0600` token
+file (`.schwab-tokens.json`); never logged, printed, or committed.
 
 ---
 
 ## 3. Register the app
 
-**Step A — Developer account**
-
-1. Go to **developer.schwab.com** and sign in (create a developer account if
-   needed). This is separate from your brokerage login; you connect a brokerage
-   account later during authorization.
-
-**Step B — Create the app & add the Market Data product**
-
-2. Create/register a new app (Dashboard → Apps).
-3. Add the **"Market Data Production"** API/product. *Do not add a trading product
-   unless you specifically want the streamer (see §1).*
-4. Set the **Callback URL (redirect URI)** to exactly:
-
-   ```
-   https://127.0.0.1:8182/callback
-   ```
-
-   This must match gammaX (`SCHWAB_REDIRECT_URI` default). It must be `https`, and
-   it must match byte-for-byte at token exchange. If Schwab rejects this value,
-   register whatever it accepts and tell me — I'll set `SCHWAB_REDIRECT_URI` to
-   match.
-5. Submit; the app goes into review.
-
-**Step C — Approval**
-
-6. Wait until the app status is **"Ready For Use"** (minutes up to ~a couple of
-   days — entirely on Schwab's side).
-7. Open the app and copy the **App Key** and **App Secret**.
-
-You now hold App Key + App Secret. Next get the refresh token.
+1. **developer.schwab.com** → sign in / create a developer account. **(community)** This
+   account is separate from your brokerage account.
+2. Create an app and add the **"Market Data Production"** product. Do **not** add
+   "Accounts and Trading Production". **(community)**
+3. Set the **Callback URL** — both **`https://127.0.0.1`** (what you registered) and
+   `https://127.0.0.1:8182/callback` are valid; whatever you register must match
+   gammaX's `SCHWAB_REDIRECT_URI` **byte-for-byte**. Rules **(community)**: must be
+   `https` (never `http`), host `127.0.0.1` (not `localhost`), optional port > 1024.
+   Changing the callback later reprocesses after market hours.
+4. Wait for status **"Ready For Use"** (not "Approved - Pending"). **(community)**
+5. Copy the **App Key** and **App Secret**.
 
 ---
 
-## 4. Get the refresh token (the OAuth flow)
+## 4. Get the refresh token (OAuth dance, on YOUR machine)
 
-This is the only interactive part. Pick one option.
+1. Open the authorize URL (substitute your App Key + your registered callback):
+   `https://api.schwabapi.com/v1/oauth/authorize?client_id=YOUR_APP_KEY&redirect_uri=YOUR_CALLBACK&response_type=code`
+2. **Log in with your Charles Schwab _brokerage_ credentials** — the schwab.com
+   Login ID + password, **not** the developer-portal login. Complete 2FA, approve
+   the account(s).
+3. The browser redirects to `YOUR_CALLBACK?code=...&session=...` and the page fails
+   to load (expected). Copy the entire address-bar URL.
+4. The `code` is short-lived (~30s). Either run the `curl` exchange below yourself
+   and give me the `refresh_token`, or paste me the redirect URL immediately and I
+   exchange it via `SchwabAuth.exchangeCode()`.
 
-**Step D — Authorize in your browser (both options start here)**
+```bash
+curl -X POST https://api.schwabapi.com/v1/oauth/token \
+  -H "Authorization: Basic $(printf '%s' 'YOUR_APP_KEY:YOUR_APP_SECRET' | base64)" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d 'grant_type=authorization_code' -d 'code=DECODED_CODE' -d 'redirect_uri=YOUR_CALLBACK'
+```
 
-1. Build the authorize URL (replace `YOUR_APP_KEY`):
-
-   ```
-   https://api.schwabapi.com/v1/oauth/authorize?client_id=YOUR_APP_KEY&redirect_uri=https://127.0.0.1:8182/callback&response_type=code
-   ```
-
-   (I can generate this exact URL via `SchwabAuth.buildAuthorizeUrl()` once you
-   give me the App Key.)
-2. Open it, log in with your **Schwab brokerage** credentials, approve the
-   account(s).
-3. The browser redirects to `https://127.0.0.1:8182/callback?code=...&session=...`.
-   **The page will fail to load — expected** (nothing listens on that port). Copy
-   the **entire URL** from the address bar.
-4. The `code` is URL-encoded and (a Schwab quirk) usually ends in `%40` →
-   decodes to `@`. Keep the whole code. **It expires in ~30 seconds**, so be quick.
-
-**Option ① — You exchange it (most robust, recommended)**
-
-5. Immediately run on your machine (fill in App Key, Secret, decoded code):
-
-   ```bash
-   curl -X POST https://api.schwabapi.com/v1/oauth/token \
-     -H "Authorization: Basic $(printf '%s' 'YOUR_APP_KEY:YOUR_APP_SECRET' | base64)" \
-     -H "Content-Type: application/x-www-form-urlencoded" \
-     -d 'grant_type=authorization_code' \
-     -d 'code=PASTE_DECODED_CODE_HERE' \
-     -d 'redirect_uri=https://127.0.0.1:8182/callback'
-   ```
-
-6. The JSON response contains `refresh_token` (7 days) and `access_token`
-   (30 min). **Give me the `refresh_token`** plus App Key + Secret. I never need
-   your brokerage password.
-
-**Option ② — I exchange it**
-
-5. Give me App Key + Secret first (I set them as env here), then paste me the full
-   redirect URL the instant you get it. I run `SchwabAuth.exchangeCode(code)` here
-   to mint and store the tokens. Caveat: the ~30-second code lifetime makes this
-   timing-tight over a chat round-trip — Option ① is more reliable.
+**Token lifetimes:** access token ~30 min (auto-refreshed by gammaX); refresh token
+**fixed 7 days from creation** — not extended by refreshing — after which you repeat
+this step. Our `oauth.ts` preserves that fixed wall and fails loudly with a re-auth
+instruction at expiry.
 
 ---
 
-## 5. Token lifetimes (maintenance reality)
+## 5. Troubleshooting the OAuth login
 
-- **Access token: ~30 minutes** (`expires_in` ≈ 1800s). Auto-refreshed by gammaX —
-  no action from you.
-- **Refresh token: 7 days, fixed.** It is **not** extended by refreshing the access
-  token. After 7 days the engine fails loudly with a re-authorization instruction
-  and you repeat Step D. (`packages/schwab/src/oauth.ts` is built around this
-  7-day wall.)
+The authorize URL forwards to Schwab's real login page at `sws-gateway.schwab.com`
+(verifiable: the authorize endpoint returns a `302` to it). If login fails there:
+
+- **"Invalid login ID or password" — but schwab.com works.** The login form is the
+  blocker, not the URL/app/callback (a bad callback gives a _different_ error,
+  "We are unable to complete your request", _after_ login). Causes, in order:
+  1. **Login ID is not your email** — it's your schwab.com username.
+  2. **Use the brokerage login, not the developer-portal login** — they're separate.
+  3. **Browser session/autofill conflict** — use a fresh **incognito** window and
+     type credentials manually.
+  4. **Password characters/length** — the gateway form is pickier than schwab.com;
+     reset to a **short, all-alphanumeric** password (no symbols) and retry.
+  5. **Account not entitled / ineligible** — if a clean alphanumeric login still
+     fails, the account isn't enabled for the API, or its type is ineligible
+     (advisor-managed "Schwab Alliance", robo/Intelligent Portfolios, workplace).
+     Email **`TraderAPI@Schwab.com`** to enable/verify Trader API access.
+- **The Swagger "Try It / Authorize" button on the docs site is a dead end.** Its
+  `client_id` is Schwab's _own demo client_, not your app, and it redirects to
+  `developer.schwab.com/oauth2-redirect.html` — it cannot mint a token for gammaX.
+  Use the authorize URL from §4 with **your** App Key and callback instead.
 
 ---
 
-## 6. How to hand me the secrets (securely)
-
-Secrets live **only** in env / a gitignored `0600` token file — never logged,
-printed, or committed.
-
-Env vars I'll export for the engine:
+## 6. How to hand me the secrets
 
 ```
 SCHWAB_APP_KEY=...
 SCHWAB_APP_SECRET=...
-SCHWAB_REDIRECT_URI=https://127.0.0.1:8182/callback   # only if you registered a different one
+SCHWAB_REDIRECT_URI=https://127.0.0.1   # must equal your registered callback
+SCHWAB_TOKEN_FILE=./.schwab-tokens.json
 ```
 
-Plus the refresh token. I write the gitignored token file (`./.schwab-tokens.json`)
-in the exact shape `TokenStore` expects (`packages/schwab/src/tokens.ts`):
+…plus the refresh token. I write the gitignored token file (`TokenStore`,
+`packages/schwab/src/tokens.ts`):
 
 ```json
 {
-  "accessToken": "…",
-  "refreshToken": "…",
-  "accessExpiresAt": 0,
-  "refreshExpiresAt": 0,
-  "tokenType": "Bearer"
+	"accessToken": "…",
+	"refreshToken": "…",
+	"accessExpiresAt": 0,
+	"refreshExpiresAt": 0,
+	"tokenType": "Bearer"
 }
 ```
 
-If you give me only the refresh token, I do one refresh call here to populate a
-fresh access token and correct the expiry timestamps.
+(Given only a refresh token, I run one refresh to populate a fresh access token and
+correct the expiries.)
 
 ---
 
-## 7. What happens once you've provided them
+## 7. Then what happens
 
-1. I run the **read-only smoke test**:
-   `pnpm --filter @gammax/schwab exec tsx src/smoke.ts` — it prints a live SPX+SPY
-   chain summary (spot, quote count, delayed flag) and confirms no trading scopes
-   were requested.
-2. I start the engine against the **schwab** feed (`FEED_SOURCE=schwab`) — it
-   captures real `ChainSnapshot`s, builds the live gamma surface + IV layer, and
-   the dashboard renders genuine SPX/SPY data.
-3. Snapshots are recorded point-in-time for forward signal grading.
-
-Expectations: data may be **15-minute delayed** rather than real-time depending on
-your account's market-data entitlement (we surface the delayed flag), and SPX
-index option chains are large, so the first pull is the heaviest call.
+1. I run the read-only smoke test
+   (`pnpm --filter @gammax/schwab exec tsx src/smoke.ts`) — prints a live SPX+SPY
+   chain summary and confirms no trading scopes.
+2. I start the engine with `FEED_SOURCE=schwab` — real `ChainSnapshot`s, live gamma
+   surface + IV layer, dashboard rendering genuine data. (Off-hours, chains return
+   the prior session's closing values; the snapshot's `delayed` flag is surfaced.)
 
 ---
 
-## Summary — what to gather
+## Sources
 
-1. **App Key**
-2. **App Secret**
-3. A **refresh token** (browser-authorize → code → token-exchange, §4)
-
-That is the entire dependency. Environment connectivity to `api.schwabapi.com` is
-already confirmed from the server.
+- Schwab Developer Portal — OAuth guide: <https://developer.schwab.com/user-guides/get-started/authenticate-with-oauth>
+- Schwab Market Data API spec (support: `TraderAPI@Schwab.com`)
+- schwab-py authentication docs: <https://schwab-py.readthedocs.io/en/latest/auth.html>
+- The (Unofficial) Guide to Schwab's Trader APIs: <https://medium.com/@carstensavage/the-unofficial-guide-to-charles-schwabs-trader-apis-14c1f5bc1d57>

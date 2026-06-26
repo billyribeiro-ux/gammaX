@@ -99,19 +99,20 @@ export class SchwabAuth {
 		const now = this.now();
 		const prev = this.cached;
 		const refreshToken = json.refresh_token ?? prev?.refreshToken ?? '';
-		// Schwab's refresh token is a hard 7-day wall from issuance — it is NOT
-		// extended by refreshing the access token, so we preserve the original
-		// expiry across refreshes. The only time the window resets is when a *new*
-		// refresh token is actually issued (explicit grant, or token rotation if
-		// Schwab ever starts returning a different refresh_token on refresh).
-		const issuedNew = refreshTtlMs != null || refreshToken !== prev?.refreshToken;
+		// Schwab's refresh token has a FIXED 7-day life from initial creation — it is
+		// NOT extended by refreshing the access token. So a fresh 7-day window starts
+		// only on an explicit new authorization (exchangeCode passes refreshTtlMs); a
+		// refresh grant preserves the original wall even if the token value rotates.
+		// This never overestimates expiry, so we fail cleanly into ReauthorizationRequired
+		// at the true deadline rather than late with an invalid_client error.
 		return {
 			accessToken: json.access_token,
 			refreshToken,
 			accessExpiresAt: now + (json.expires_in ?? 1800) * 1000,
-			refreshExpiresAt: issuedNew
-				? now + (refreshTtlMs ?? REFRESH_TTL_MS)
-				: (prev?.refreshExpiresAt ?? now + REFRESH_TTL_MS),
+			refreshExpiresAt:
+				refreshTtlMs != null
+					? now + refreshTtlMs
+					: (prev?.refreshExpiresAt ?? now + REFRESH_TTL_MS),
 			tokenType: json.token_type ?? 'Bearer'
 		};
 	}

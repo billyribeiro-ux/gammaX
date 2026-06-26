@@ -3,7 +3,11 @@ import { z } from 'zod';
 export const SchwabConfig = z.object({
 	appKey: z.string().min(1),
 	appSecret: z.string().min(1),
-	redirectUri: z.string().url(),
+	// Schwab rejects non-https callbacks, so fail locally instead of at the login wall.
+	redirectUri: z
+		.string()
+		.url()
+		.refine((u) => u.startsWith('https://'), { message: 'redirect URI must be https' }),
 	tokenFile: z.string().min(1),
 	// Streamer QoS: 0=Express(500ms) 1=RealTime(750) 2=Fast(1000) … 5=Delayed(5000)
 	streamQos: z.number().int().min(0).max(5).default(0)
