@@ -5,7 +5,9 @@ A forward-only research engine that, during US market hours, computes a live
 layer**, derives **0DTE-specific signals**, records every input point-in-time,
 emits timestamped signals, and **grades them against subsequent price action** —
 rendered in a real-time SvelteKit dashboard. A SpotGamma-alike scoped to S&P
-0DTE, fused with an IV explosion/implosion detector.
+0DTE, fused with an IV explosion/implosion detector. Two **multi-ticker scanners**
+— IV explosion/implosion and gamma-scalping (long-γ / short-γ favorability) — rank
+a configurable watchlist on top of the SPX/SPY core.
 
 > **Phase 1 is forward evaluation only.** Schwab exposes no historical option
 > chains/greeks/OI/IV, so this engine records live snapshots from today onward and
@@ -53,18 +55,27 @@ pnpm install
 pnpm check          # typecheck + lint + svelte-check + prettier + tests (all green)
 ```
 
-### Run on synthetic data (zero setup — no DB server, no creds)
+### Everything at once — engine + dashboard (zero setup)
 
 ```sh
-# terminal 1 — engine on a deterministic synthetic feed, SQLite store
-FEED_SOURCE=synthetic DB_DRIVER=sqlite SQLITE_PATH=./data/gammax.sqlite \
-  ENGINE_SESSION_AWARE=false pnpm --filter @gammax/engine start
-
-# terminal 2 — dashboard (connects to ws://localhost:8787 by default)
-pnpm --filter @gammax/web dev
+pnpm dev:all        # engine (ws :8787, sqlite + synthetic) + dashboard (:5173)
 ```
 
-Open the dashboard; all six panels render live off the engine WS.
+Open <http://localhost:5173> — every panel renders live off the engine WS,
+including the IV explosion/implosion and gamma-scalping scanners. The engine `dev`
+script defaults to sqlite + synthetic + session-aware-off but respects any env
+override, so e.g. a richer watchlist is just:
+
+```sh
+WATCHLIST=SPX,SPY,QQQ,AAPL,NVDA,TSLA pnpm dev:all
+```
+
+### Run the engine alone on synthetic data
+
+```sh
+FEED_SOURCE=synthetic DB_DRIVER=sqlite SQLITE_PATH=./data/gammax.sqlite \
+  ENGINE_SESSION_AWARE=false pnpm --filter @gammax/engine start
+```
 
 ### Run on live Schwab data (read-only)
 
@@ -109,9 +120,13 @@ total-variance interpolation (Cboe VIX method). See `packages/core/src/*.test.ts
 Copy `.env.example` → `.env`. Key vars: `FEED_SOURCE`, `DB_DRIVER`/`DATABASE_URL`/
 `SQLITE_PATH`, `ENGINE_WS_PORT`, `ENGINE_RECOMPUTE_MS`, `ENGINE_GRADE_HORIZONS`,
 `ENGINE_SESSION_AWARE`, `RISK_FREE_RATE`, `SPX/SPY_DIVIDEND_YIELD`,
-`IV_ZSCORE_THRESHOLD`, `PUBLIC_ENGINE_WS_URL`, and the `SCHWAB_*` credentials.
+`IV_ZSCORE_THRESHOLD`, `WATCHLIST` (scanner universe, e.g. `SPX,SPY,QQQ,AAPL`),
+`ENGINE_GRADE_MAX_STALENESS_MS`, `PUBLIC_ENGINE_WS_URL`, and the `SCHWAB_*`
+credentials.
 
 ## Phase 1 non-goals
 
 No order placement; no OPRA/Databento historical adapter (the `MarketFeed` seam is
-ready); no IV-rank/percentile; no multi-name scan (S&P only); no auth/billing.
+ready); no IV-rank/percentile; no auth/billing. The combined dealer-gamma surface
+remains S&P-only (SPX+SPY); the multi-ticker scanners cover the configured
+`WATCHLIST` but do not build per-ticker combined surfaces.
