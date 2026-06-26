@@ -2,8 +2,10 @@
 	import { env } from '$env/dynamic/public';
 	import type { ExpiryScope, SurfaceScope } from '@gammax/contracts';
 	import GammaProfile from '$lib/components/GammaProfile.svelte';
+	import GammaScalpScanner from '$lib/components/GammaScalpScanner.svelte';
 	import GammaSurface3D from '$lib/components/GammaSurface3D.svelte';
 	import HealthBar from '$lib/components/HealthBar.svelte';
+	import IvScanner from '$lib/components/IvScanner.svelte';
 	import IvVelocity from '$lib/components/IvVelocity.svelte';
 	import KeyLevels from '$lib/components/KeyLevels.svelte';
 	import SignalFeed from '$lib/components/SignalFeed.svelte';
@@ -75,6 +77,22 @@
 			<KeyLevels surface={combinedAll} surface0={combined0} pinpop={lastPinPop} />
 		</section>
 
+		<section class="panel ivscan">
+			<header>
+				<h2>IV explosion / implosion scanner</h2>
+				<span class="count mono">{store.ivScan?.rows.length ?? 0} symbols</span>
+			</header>
+			<IvScanner scan={store.ivScan} />
+		</section>
+
+		<section class="panel scalp">
+			<header>
+				<h2>gamma-scalping scanner</h2>
+				<span class="count mono">{store.gammaScalp?.rows.length ?? 0} symbols</span>
+			</header>
+			<GammaScalpScanner scan={store.gammaScalp} />
+		</section>
+
 		<section class="panel feed">
 			<header><h2>live signals</h2></header>
 			<SignalFeed signals={store.signals} outcomes={store.outcomes} />
@@ -137,8 +155,18 @@
 	.levels {
 		grid-column: span 5;
 	}
+	.ivscan {
+		grid-column: span 5;
+	}
+	.scalp {
+		grid-column: span 7;
+	}
 	.feed {
 		grid-column: span 12;
+	}
+	.count {
+		font-size: 10px;
+		color: var(--ink-faint);
 	}
 	.toggles {
 		display: flex;

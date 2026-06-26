@@ -21,5 +21,9 @@ test('dashboard renders live panels off the engine WS', async ({ page }) => {
 	await page.getByRole('button', { name: 'SPX', exact: true }).click();
 	await expect.poll(async () => page.locator('.profile rect').count()).toBeGreaterThan(0);
 
+	// Both scanners populate from the watchlist.
+	await expect.poll(async () => page.locator('.ivscan tbody tr').count()).toBeGreaterThan(1);
+	await expect.poll(async () => page.locator('.scalp tbody tr').count()).toBeGreaterThan(1);
+
 	await page.screenshot({ path: 'e2e-dashboard.png', fullPage: true });
 });
