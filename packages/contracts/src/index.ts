@@ -5,5 +5,6 @@ export * from './surface';
 export * from './iv';
 export * from './signals';
 export * from './signal-spec';
+export * from './scanner';
 export * from './feed';
 export * from './engine-message';
