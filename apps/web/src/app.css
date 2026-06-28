@@ -51,6 +51,12 @@
 }
 
 @layer base {
+	/* Dark base on the root element too: body's gradient uses background-attachment:
+	   fixed (sized to the viewport), so without this any area outside the viewport —
+	   e.g. a full-page screenshot — would fall back to the default white canvas. */
+	html {
+		background: var(--bg-0);
+	}
 	body {
 		background:
 			radial-gradient(1200px 700px at 78% -8%, oklch(0.26 0.05 262 / 0.5), transparent 60%),
